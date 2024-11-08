@@ -1,0 +1,517 @@
+#### Installation:
+
+pip3 install fastapi[all]
+
+#### Path Operation:
+
+- Function name should be anything. Function name should be descriptive
+- FastAPI convert dictionary to json 
+- @app decorator turn into normal function as path operations
+
+```.py
+@app.get("/")
+def root():
+    return {"message":"Hello Fast API"}
+```
+- request Get method url: '/'
+
+#### HTTP GET VS POST Request:
+            GET
+          -----------> 
+-  client     [DATA]      API
+          <-----------
+
+            POST[DATA]
+          -------------> 
+-  client         [DATA]       API
+          <-------------
+
+- # Body(...) extract all fields from Body and convert to python dictionary and store 
+    inside variable name payload.
+
+```.py
+
+from fastapi import FastAPI
+from fastapi.params import Body
+
+app = FastAPI()
+
+@app.get('/')
+def root():
+    return {'message': 'Hello World!'}
+
+@app.get('/posts')
+def get_post():
+    return {"data":"This is your post"}
+
+@app.post('/createposts')
+def create_post(payload: dict = Body(...)):
+    print(payload)
+    return {"message": f"title: {payload['title']} Content:{payload['content']}"}
+
+```
+### Why We need Schema
+
+- It's pain to get all the values from the Body
+- The client can send whatever data they want 
+- The data isn't getting validated
+- We ultimately want to force the client to send data in schema that we expect
+- to solve this problem we use pydantic library
+- pydantic do all the validations  
+- published: bool = True 
+- rating: Optional[int] = None
+- if user doesn't provide a value default value take it as True
+
+
+```.py
+
+from typing import Optional
+from fastapi import FastAPI
+from fastapi.params import Body
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+    rating: Optional[int] = None  # Optional field default value provided as none
+    
+
+@app.get('/')
+def root():
+    return {'message': 'Hello World!'}
+@app.get('/posts')
+def get_post():
+    return {"data":"This is your post"}
+
+@app.post('/createposts')
+def create_post(post: Post):
+    print(post.dict())
+    return {"data": post}
+
+
+```
+- we actually extract data and saved into new_post it actually stored into pydantic model 
+- To make it specific pydantic model
+- each pydantic model has a method called .dict()
+- this .dict() method convert pydantic model to dictionary and return as dictionary
+
+#### CRUD
+
+- Create    -  POST               /posts       @app.post('/posts')
+- Read      -  GET                /posts/:id   @app.get('/posts/{id}')
+            -  GET                /posts       @app.get('/posts)
+- Update    -  PUT/PATCH          /posts/:id   @app.put('/posts/{id}')
+- Delete    -  DELETE             /posts/:id   @app.delete('/posts/{id}')
+
+- id filed represents path parameter
+```
+from typing import Optional
+from fastapi import FastAPI
+from fastapi.params import Body
+from pydantic import BaseModel
+from random import randrange
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+    rating: Optional[int] = None  # Optional field default value provided as none
+    
+my_posts = [
+    
+    {'title': 'New Presedent Elected In USA', 'content': 'The People of United States Of America(USA) Elected Trump has New Pr', 'published': False, 'rating': 4, "id": 1,}, 
+    
+    {'title': 'New Things Will Change Your Life', 'content': "Good Or Bad You need to Accept. Every Person Gives Memories either it's good or bad", 'published': True, 'rating': None, "id": 2}
+]
+
+@app.get('/')
+def root():
+    return {'message': 'Hello World!'}
+
+@app.get('/posts')
+def get_posts():
+    return {"data":my_posts}
+
+@app.post('/posts')
+def create_post(post: Post):
+    post_dict = post.dict()
+    post_dict['id'] = randrange(1, 1000000)  # Assigning random ID for each post
+    my_posts.append(post_dict)
+    return {"data": post_dict}
+
+def find_post(id):
+    
+    for post in my_posts:
+        if post['id'] == id:
+            print(post)
+            return {"data": post}
+    return {"error": "Post not found"}
+
+@app.get('/posts/{id}')
+def get_post(id: int):
+ 
+    return find_post(id)
+     
+```
+- order is matters here
+- we use response library to throw specific status_code
+- from fastapi to FastAPI, Response
+- another library to handle status_code is status
+- from fastapi to FastAPI, Response, status
+
+```.py
+from typing import Optional
+from fastapi import FastAPI, Response, status, HTTPException
+#from fastapi.params import Body
+from pydantic import BaseModel
+from random import randrange
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+    rating: Optional[int] = None  # Optional field default value provided as none
+    
+my_posts = [
+    
+    {'title': 'New Presedent Elected In USA', 'content': 'The People of United States Of America(USA) Elected Trump has New Pr', 'published': False, 'rating': 4, "id": 1,}, 
+    
+    {'title': 'New Things Will Change Your Life', 'content': "Good Or Bad You need to Accept. Every Person Gives Memories either it's good or bad", 'published': True, 'rating': None, "id": 2}
+]
+
+@app.get('/')
+def root():
+    return {'message': 'Hello World!'}
+
+@app.get('/posts')
+def get_posts():
+    return {"data":my_posts}
+
+@app.post('/posts')
+def create_post(post: Post):
+    post_dict = post.dict()
+    post_dict['id'] = randrange(1, 1000000)  # Assigning random ID for each post
+    my_posts.append(post_dict)
+    return {"data": post_dict}
+
+def find_post(id):
+    
+    for post in my_posts:
+        if post['id'] == id:
+            return post
+
+@app.get('/posts/{id}')
+def get_post(id: int, response: Response):
+ 
+    post = find_post(id)
+    if not post:
+        # response.status_code = status.HTTP_404_NOT_FOUND
+        # return {"message": f"Post with id {id} not found"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    return {"data": post}
+        
+```
+```.py
+from typing import Optional
+from fastapi import FastAPI, Response, status, HTTPException
+#from fastapi.params import Body
+from pydantic import BaseModel
+from random import randrange
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+    rating: Optional[int] = None  # Optional field default value provided as none
+    
+my_posts = [
+    
+    {'title': 'New Presedent Elected In USA', 'content': 'The People of United States Of America(USA) Elected Trump has New Pr', 'published': False, 'rating': 4, "id": 1,}, 
+    
+    {'title': 'New Things Will Change Your Life', 'content': "Good Or Bad You need to Accept. Every Person Gives Memories either it's good or bad", 'published': True, 'rating': None, "id": 2}
+]
+
+@app.get('/')
+def root():
+    return {'message': 'Hello World!'}
+
+@app.get('/posts')
+def get_posts():
+    return {"data":my_posts}
+
+@app.post('/posts', status_code = status.HTTP_201_CREATED)
+def create_post(post: Post):
+    post_dict = post.dict()
+    post_dict['id'] = randrange(1, 1000000)  # Assigning random ID for each post
+    my_posts.append(post_dict)
+    return {"data": post_dict}
+
+def find_post(id):
+    
+    for post in my_posts:
+        if post['id'] == id:
+            return post
+
+def find_index_post(id):
+    for i, post in enumerate(my_posts):
+        if post['id'] == id:
+            return i
+
+@app.get('/posts/{id}')
+def get_post(id: int):
+ 
+    post = find_post(id)
+    if not post:
+        # response.status_code = status.HTTP_404_NOT_FOUND
+        # return {"message": f"Post with id {id} not found"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    return {"data": post}
+        
+
+@app.delete('/posts/{id}',status_code=status.HTTP_204_NO_CONTENT)
+def del_post(id: int):
+    # deleting a post
+    # find the index in the array that has required ID
+    # my_post
+    index = find_index_post(id)
+    if index == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    
+    # remove the post from the array
+    my_posts.pop(index)
+    return {"message": f"Post with id {id} deleted successfully"}
+    
+```
+```.py
+from typing import Optional
+from fastapi import FastAPI, Response, status, HTTPException
+#from fastapi.params import Body
+from pydantic import BaseModel
+from random import randrange
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+    rating: Optional[int] = None  # Optional field default value provided as none
+    
+
+    
+    
+my_posts = [
+    
+    {'title': 'New Presedent Elected In USA', 'content': 'The People of United States Of America(USA) Elected Trump has New Pr', 'published': False, 'rating': 4, "id": 1,}, 
+    
+    {'title': 'New Things Will Change Your Life', 'content': "Good Or Bad You need to Accept. Every Person Gives Memories either it's good or bad", 'published': True, 'rating': None, "id": 2}
+]
+
+@app.get('/')
+def root():
+    return {'message': 'Hello World!'}
+
+@app.get('/posts')
+def get_posts():
+    return {"data":my_posts}
+
+@app.post('/posts', status_code = status.HTTP_201_CREATED)
+def create_post(post: Post):
+    post_dict = post.dict()
+    post_dict['id'] = randrange(1, 1000000)  # Assigning random ID for each post
+    my_posts.append(post_dict)
+    return {"data": post_dict}
+
+def find_post(id):
+    
+    for post in my_posts:
+        if post['id'] == id:
+            return post
+
+def find_index_post(id):
+    for i, post in enumerate(my_posts):
+        if post['id'] == id:
+            return i
+
+@app.get('/posts/{id}')
+def get_post(id: int):
+ 
+    post = find_post(id)
+    if not post:
+        # response.status_code = status.HTTP_404_NOT_FOUND
+        # return {"message": f"Post with id {id} not found"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    return {"data": post}
+        
+
+@app.delete('/posts/{id}',status_code=status.HTTP_204_NO_CONTENT)
+def del_post(id: int):
+    # deleting a post
+    # find the index in the array that has required ID
+    # my_post
+    index = find_index_post(id)
+    if index == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    
+    # remove the post from the array
+    my_posts.pop(index)
+    return {"message": f"Post with id {id} deleted successfully"}
+    
+@app.put('/posts/{id}')
+def update_post(id: int, post: Post):
+    
+    index = find_index_post(id)
+    if index == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    
+    post_dict = post.dict()
+    post_dict['id'] = id
+    my_posts[index] = post_dict
+    return {'data': post_dict} 
+
+```
+
+#### database configurations
+
+- Log into MariaDB as root (if you're not already):
+- sudo mysql
+- Reset the password for root:
+- ALTER USER 'root'@'localhost' IDENTIFIED BY 'your_new_password';
+  FLUSH PRIVILEGES;
+- EXIT;
+```dbconfig.py
+from databases import Database
+
+# Set your database connection string
+DATABASE_URL = "mysql+asyncmy://root:Test@1262@localhost/fastapi"
+
+
+database = Database(DATABASE_URL)
+
+
+async def connect_db():
+    try:
+        await database.connect()
+        print("Database connection successful!")
+    except Exception as e:
+        print(f"Error connecting to database: {e}")
+
+async def disconnect_db():
+    try:
+        await database.disconnect()
+        print("Database disconnected successfully!")
+    except Exception as e:
+        print(f"Error disconnecting from the database: {e}")
+```
+```.py
+from typing import Optional
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel
+from random import randrange
+from app.dbconfig import database, connect_db, disconnect_db
+
+
+app = FastAPI()
+
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+    rating: Optional[int] = None  # Optional field default value provided as none
+
+
+@app.on_event("startup")
+async def startup():
+    
+    await connect_db()
+
+@app.on_event("shutdown")
+async def shutdown():
+   
+    await disconnect_db()
+
+@app.get("/health")
+async def health_check():
+    try:
+        
+        result = await database.fetch_one("SELECT 1")
+        if result:
+            return {"status": "healthy", "message": "Database connection is active"}
+        else:
+            raise HTTPException(status_code=500, detail="Database query failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database not connected: {e}")
+
+
+@app.get('/')
+def root():
+    return {'message': 'Hello World!'}
+
+@app.get('/posts')
+def get_posts():
+    return {"data":my_posts}
+
+@app.post('/posts', status_code = status.HTTP_201_CREATED)
+def create_post(post: Post):
+    post_dict = post.dict()
+    post_dict['id'] = randrange(1, 1000000)  # Assigning random ID for each post
+    my_posts.append(post_dict)
+    return {"data": post_dict}
+
+def find_post(id):
+    
+    for post in my_posts:
+        if post['id'] == id:
+            return post
+
+def find_index_post(id):
+    for i, post in enumerate(my_posts):
+        if post['id'] == id:
+            return i
+
+@app.get('/posts/{id}')
+def get_post(id: int):
+ 
+    post = find_post(id)
+    if not post:
+        # response.status_code = status.HTTP_404_NOT_FOUND
+        # return {"message": f"Post with id {id} not found"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    return {"data": post}
+        
+
+@app.delete('/posts/{id}',status_code=status.HTTP_204_NO_CONTENT)
+def del_post(id: int):
+    # deleting a post
+    # find the index in the array that has required ID
+    # my_post
+    index = find_index_post(id)
+    if index == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    
+    # remove the post from the array
+    my_posts.pop(index)
+    return {"message": f"Post with id {id} deleted successfully"}
+    
+@app.put('/posts/{id}')
+def update_post(id: int, post: Post):
+    
+    index = find_index_post(id)
+    if index == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
+    
+    post_dict = post.dict()
+    post_dict['id'] = id
+    my_posts[index] = post_dict
+    return {'data': post_dict} 
+```
